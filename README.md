@@ -2,19 +2,11 @@
 
 A terminal tool that measures how fast an **Ollama Cloud** model actually serves you.
 
+![ometer measuring a cloud model](docs/report.png)
+
 You give it a model name; it streams a few requests at the endpoint, watches every token
 land, and reports time to first token, decode throughput, inter-token latency and where
 the time actually went — with a live dashboard while it works.
-
-```
- ██████╗ ███╗   ███╗███████╗████████╗███████╗██████╗
-██╔═══██╗████╗ ████║██╔════╝╚══██╔══╝██╔════╝██╔══██╗
-██║   ██║██╔████╔██║█████╗     ██║   █████╗  ██████╔╝
-██║   ██║██║╚██╔╝██║██╔══╝     ██║   ██╔══╝  ██╔══██╗
-╚██████╔╝██║ ╚═╝ ██║███████╗   ██║   ███████╗██║  ██║
- ╚═════╝ ╚═╝     ╚═╝╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
-              ollama cloud inference meter
-```
 
 ---
 
@@ -126,56 +118,16 @@ trace, the text streaming in, and a scoreboard of finished runs:
 
 ## The report
 
-*Example layout; the numbers below are illustrative, not a measurement of any real model.*
+The screenshot at the top of this page is a real run. Reading it top to bottom:
 
-```
-╭─ time to first token ─────────────────╮ ╭─ decode speed ────────────────────────╮
-│ █ █ ▀▀█ █▀█                           │ │ █▀▀ ▀▀█   ▀▀█                         │
-│ ▀▀█ █▀▀ ▀▀█                           │ │ █▀█ █▀▀   ▀▀█                         │
-│   ▀ ▀▀▀ ▀▀▀ ms                        │ │ ▀▀▀ ▀▀▀ ▀ ▀▀▀ tok/s                   │
-│ p95 544 ms  min 360 ms                │ │ max 66.2  min 59.9                    │
-╰───────────────────────────────────────╯ ╰───────────────────────────────────────╯
-
-╭─ aggregate ────────────────────────────────────────────────────────────────────────╮
-│  metric                          mean         p50        p95        max        cv  │
-│  ────────────────────────────────────────────────────────────────────────────────  │
-│  time to first token           429 ms      362 ms     544 ms     565 ms     27.5%  │
-│  decode speed (tok/s)            62.3        60.7       65.7       66.2      5.5%  │
-│  end-to-end (tok/s)              38.4        39.9       42.0       42.2     12.4%  │
-│  prefill speed (tok/s)          372.7       372.7      372.7      372.7      0.0%  │
-│  inter-token latency          16.0 ms     14.7 ms    23.0 ms    98.3 ms     72.8%  │
-│  total request time            1.05 s      1.00 s     1.19 s     1.21 s     13.1%  │
-│  output tokens                     40          40         40         40      0.0%  │
-╰────────────────────────────────────────────────────────────────────────────────────╯
-╭─ per run ──────────────────────────────────────────────────────────────────────────╮
-│  run         ttft    tok/s    itl p50    itl p95    out    total   latency trace   │
-│  ────────────────────────────────────────────────────────────────────────────────  │
-│  1         362 ms     59.9    15.6 ms    24.0 ms     40   1.00 s   ▃▅▃▇▄█▆▅▅▁▃▆▂▄  │
-│  2         360 ms     66.2    14.6 ms    22.1 ms     40   947 ms   ▃▂▅▃▃▃▄▁▄▃▆▃▄▃  │
-│  3         565 ms     60.7    14.3 ms    21.9 ms     40   1.21 s   ▇▅▃▆▄▂█▃▄▁▅▄▂▁  │
-╰────────────────────────────────────────────────────────────────────────────────────╯
-╭─ where the time goes  mean per request ────────────────────────────────────────────╮
-│ ██████████████████████████████████████████████████████████████████████████████████ │
-│                                                                                    │
-│ ■ network + queue     2 ms   0.3%                                                  │
-│ ■ model load         80 ms   9.6%                                                  │
-│ ■ prompt prefill    110 ms  13.2%                                                  │
-│ ■ token generation  644 ms  77.0%                                                  │
-╰────────────────────────────────────────────────────────────────────────────────────╯
-╭─ inter-token latency distribution ─────────────────────────────────────────────────╮
-│      1.2 –   11.3 ms ████████████████····································   24     │
-│     11.3 –   21.5 ms ████████████████████████████████████████████████████   78     │
-│     21.5 –   31.6 ms ████████▋···········································   13     │
-│       over   82.4 ms █▎··················································    2     │
-│                                                                                    │
-│ 117 gaps measured · 2 stall(s) over 5× the mean                                    │
-╰────────────────────────────────────────────────────────────────────────────────────╯
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃  model      demo:model                                                             ┃
-┃  verdict    62.3 tok/s after 429 ms  ·  stable (±5.5% run to run)                  ┃
-┃  runs       3 succeeded  ·  120 tokens generated                                   ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-```
+- **hero cards** — the four headline numbers, each with its spread underneath
+- **aggregate** — every metric as mean / min / p50 / p95 / max, plus `cv` for run-to-run
+  consistency
+- **per run** — one row per request, with a sparkline of that run's inter-token gaps
+- **where the time goes** — the server-reported split of a request, for endpoints that
+  report it
+- **inter-token latency distribution** — a histogram of the gaps, with a stall count
+- **verdict** — the whole thing in one line
 
 Everything reflows between 40 and 200 columns — columns are dropped and labels shortened
 as the terminal narrows, so nothing is ever cut off mid-word.
