@@ -129,8 +129,10 @@ The screenshot at the top of this page is a real run. Reading it top to bottom:
 - **inter-token latency distribution** — a histogram of the gaps, with a stall count
 - **verdict** — the whole thing in one line
 
-Everything reflows between 40 and 200 columns — columns are dropped and labels shortened
-as the terminal narrows, so nothing is ever cut off mid-word.
+The report reflows between 40 and 200 columns. As the terminal narrows, table columns are
+dropped and labels shortened rather than truncated, so no measurement is ever cut off
+mid-word. Only the header can ellipsise, and only for things that genuinely cannot be
+broken — a long endpoint URL or `.env` path below about 60 columns.
 
 ## What the numbers mean
 
@@ -245,6 +247,12 @@ you ever run.
   handled.
 - Defaults are `temperature 0` and `seed 42` so runs are as comparable as possible.
   Override them if you want to measure under realistic sampling.
+- **If you are hacking on this:** `cmd` is also the name of a standard-library module, and
+  Python puts the script's own folder first on the import path. Inside this directory
+  `import cmd` therefore finds `cmd/`, not the stdlib, which breaks `pdb` and `doctest`
+  and any tool that imports them — `python3 -m pdb ometer.py` and `breakpoint()` will not
+  work here. Running ometer is unaffected; it never touches those modules, and neither do
+  rich, httpx or python-dotenv. Debug from another directory, or rename the package.
 
 ## License
 
