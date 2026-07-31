@@ -15,10 +15,10 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from client import Chunk
-from config import BenchConfig, mask_key
-from metrics import Report, RunResult, Stats, percentile
-from theme import (
+from .client import Chunk
+from .config import BenchConfig, mask_key
+from .metrics import Report, RunResult, Stats, percentile
+from .theme import (
     AMBER,
     BLUE,
     CYAN,

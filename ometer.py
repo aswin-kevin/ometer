@@ -18,9 +18,9 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from bench import Benchmark, BenchRunError
-from client import OllamaClient, OllamaError
-from config import (
+from cmd.bench import Benchmark, BenchRunError
+from cmd.client import OllamaClient, OllamaError
+from cmd.config import (
     SUGGESTED_MODELS,
     BenchConfig,
     ConfigError,
@@ -29,9 +29,9 @@ from config import (
     resolve_api_key,
     resolve_host,
 )
-from metrics import Report
-from theme import AMBER, CYAN, DIM, FAINT, GREEN, RED, TEXT
-from ui import LiveDashboard, config_panel, print_banner, render_results, render_sample
+from cmd.metrics import Report
+from cmd.theme import AMBER, CYAN, DIM, FAINT, GREEN, RED, TEXT
+from cmd.ui import LiveDashboard, config_panel, print_banner, render_results, render_sample
 
 __version__ = "1.0.0"
 

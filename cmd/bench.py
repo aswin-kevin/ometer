@@ -5,9 +5,9 @@ from __future__ import annotations
 import time
 from typing import Callable, Dict, List, Optional
 
-from client import Chunk, OllamaClient, OllamaError
-from config import BenchConfig
-from metrics import Report, RunResult
+from .client import Chunk, OllamaClient, OllamaError
+from .config import BenchConfig
+from .metrics import Report, RunResult
 
 #: called as hook(event, run, chunk) where event is
 #: "start" | "chunk" | "done" | "error"

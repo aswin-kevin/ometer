@@ -220,14 +220,19 @@ aggregate block. Useful for tracking an endpoint over time or comparing models.
 ## Project layout
 
 ```
-ometer.py    CLI, argument parsing, the interactive model prompt
-ui.py        live dashboard and the results report
-bench.py     the run loop (warmup + measured runs)
-client.py    streaming client for the Ollama Cloud API
-metrics.py   per-run measurements, percentiles, aggregation
-config.py    .env loading and run configuration
-theme.py     colours, big digits, sparklines, bars
+ometer.py        the entry point — CLI, argument parsing, interactive model prompt
+cmd/
+├── ui.py        live dashboard and the results report
+├── bench.py     the run loop (warmup + measured runs)
+├── client.py    streaming client for the Ollama Cloud API
+├── metrics.py   per-run measurements, percentiles, aggregation
+├── config.py    .env loading and run configuration
+└── theme.py     colours, big digits, sparklines, bars
+docs/report.png  the screenshot above
 ```
+
+`cmd/` is an ordinary Python package; `ometer.py` imports from it and is the only file
+you ever run.
 
 ## Notes
 
