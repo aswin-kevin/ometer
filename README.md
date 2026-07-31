@@ -288,3 +288,7 @@ theme.py     colours, big digits, sparklines, bars
   handled.
 - Defaults are `temperature 0` and `seed 42` so runs are as comparable as possible.
   Override them if you want to measure under realistic sampling.
+
+## License
+
+MIT — see [LICENSE](LICENSE). Copyright (c) 2026 Aswin Venkat.
