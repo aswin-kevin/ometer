@@ -57,9 +57,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--system", help="optional system message")
     p.add_argument("--temperature", type=float, default=0.0, help="sampling temperature (default: 0)")
     p.add_argument("--seed", type=int, default=42, help="sampling seed, use -1 for none (default: 42)")
+    # reasoning is off unless asked for: an unset `think` means "on" to Ollama, which
+    # would silently measure a different workload than the same run on a plain model
     think = p.add_mutually_exclusive_group()
-    think.add_argument("--think", dest="think", action="store_true", default=None, help="enable reasoning")
-    think.add_argument("--no-think", dest="think", action="store_false", help="disable reasoning")
+    think.add_argument("--think", dest="think", action="store_true", default=False, help="enable reasoning")
+    think.add_argument("--no-think", dest="think", action="store_false", help="disable reasoning (default)")
     p.add_argument("--host", help="API base URL (default: https://ollama.com)")
     p.add_argument("--env-file", help="path to a specific .env file")
     p.add_argument("--timeout", type=float, default=300.0, help="per-request timeout in seconds")

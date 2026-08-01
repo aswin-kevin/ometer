@@ -146,7 +146,7 @@ broken — a long endpoint URL or `.env` path below about 60 columns.
 | Metric | Meaning |
 | --- | --- |
 | **Time to first token (TTFT)** | Wall-clock time from sending the request to the first streamed token. Covers network, queueing and prompt prefill — the pause the user feels before anything appears. |
-| **Time to first content** | Same, but ignoring reasoning tokens. Only shown for thinking models, where the visible answer starts later than the stream does. |
+| **Time to first content** | Same, but ignoring reasoning tokens. Only appears when a run actually produced reasoning — `--think`, or a model like `gpt-oss` whose trace cannot be turned off — because that is when the visible answer starts later than the stream does. |
 | **Decode speed** | Generation throughput once tokens are flowing — the number usually quoted as "tokens/sec". Taken from the server's `eval_count / eval_duration` when reported; otherwise from the token count over the wall-clock decode window. |
 | **End-to-end speed** | Output tokens ÷ total request time. Lower than decode speed because it includes the wait for the first token. This is what you actually experience. |
 | **Prefill speed** | Prompt tokens ÷ prompt-eval time — how fast your input was read. |
@@ -176,7 +176,7 @@ verdict says *single run* rather than claiming consistency it cannot know.
     --temperature F    sampling temperature                    [default: 0]
     --seed N           sampling seed, -1 for none              [default: 42]
     --think            enable reasoning
-    --no-think         disable reasoning
+    --no-think         disable reasoning                       [default]
     --host URL         API base URL              [default: https://ollama.com]
     --env-file PATH    use a specific .env
     --timeout S        per-request timeout in seconds          [default: 300]
@@ -187,6 +187,14 @@ verdict says *single run* rather than claiming consistency it cannot know.
     --no-banner        skip the logo
     --version          print the version
 ```
+
+Reasoning is **off by default**: every request sends `"think": false`. Ollama treats an
+absent `think` as *on* for models that support it, which would quietly measure a
+different workload on a thinking model than on a plain one. Pass `--think` to measure
+with reasoning enabled. Two caveats worth knowing: `gpt-oss` ignores the boolean
+entirely — its trace cannot be disabled, only tuned with `low`/`medium`/`high`, which
+ometer does not expose — and models with no reasoning capability accept `false`
+without complaint, so nothing breaks by sending it everywhere.
 
 ### Examples
 

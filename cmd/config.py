@@ -115,7 +115,8 @@ class BenchConfig:
     max_tokens: int = 256
     temperature: float = 0.0
     seed: Optional[int] = 42
-    think: Optional[bool] = None
+    # False, not None: None lets Ollama fall back to its own default, which is on
+    think: Optional[bool] = False
     timeout: float = 300.0
     cooldown: float = 0.0
 
