@@ -118,16 +118,23 @@ trace, the text streaming in, and a scoreboard of finished runs:
 
 ## The report
 
-The screenshot at the top of this page is a real run. Reading it top to bottom:
+The screenshot at the top is a real run against Ollama Cloud. The report is made of:
 
 - **hero cards** — the four headline numbers, each with its spread underneath
 - **aggregate** — every metric as mean / min / p50 / p95 / max, plus `cv` for run-to-run
   consistency
 - **per run** — one row per request, with a sparkline of that run's streaming gaps
-- **where the time goes** — the server-reported split of a request, for endpoints that
-  report it
 - **latency distribution** — a histogram of the streaming gaps, with a stall count
+- **where the time goes** — the server-reported split of a request. Not in the screenshot,
+  because Ollama Cloud does not report phase timings and ometer skips the panel rather
+  than inventing numbers for it
 - **verdict** — the whole thing in one line
+
+That run is also a good example of why the labels move around. minimax-m2.7 packs roughly
+23 tokens into every streamed chunk and sends one about every 470 ms, so the gap columns
+read **icl** (inter-chunk) rather than itl — the client simply cannot see individual
+tokens arrive. Worth knowing before you read a 469 ms "latency" as a stutter: the model is
+producing 53 tokens a second, just delivering them in batches.
 
 The report reflows between 40 and 200 columns. As the terminal narrows, table columns are
 dropped and labels shortened rather than truncated, so no measurement is ever cut off
