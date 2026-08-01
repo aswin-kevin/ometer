@@ -129,7 +129,9 @@ class BenchConfig:
         rows = [
             ("model", self.model),
             ("endpoint", f"{self.host}/api/chat"),
-            ("runs", f"{self.runs}  (+{self.warmup} warmup)" if self.warmup else str(self.runs)),
+            ("runs", f"{self.runs} measured" + (f"  ·  {self.warmup} warmup" if self.warmup else "")),
+            # a preflight request always runs first, so say so — it costs quota too
+            ("requests", f"{1 + self.warmup + self.runs} total, including 1 preflight"),
             ("max tokens", str(self.max_tokens)),
             ("temperature", f"{self.temperature:g}"),
             ("seed", "none" if self.seed is None else str(self.seed)),

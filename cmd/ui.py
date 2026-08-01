@@ -454,13 +454,16 @@ def _aggregate_table(console: Console, report: Report) -> Panel:
             table.add_row(Text(long if wide_labels else short, style=color), *[values[c] for c in cols])
 
         row("time to first token", "ttft", report.stat("ttft"), fmt_time, CYAN)
-        if any(r.thinking_chars for r in report.ok_runs):
+        # only meaningful for a thinking model that actually reached visible
+        # content — otherwise it either duplicates ttft or is a row of dashes
+        if any(r.thinking_chars for r in report.ok_runs) and report.stat("ttfc").n:
             row("time to first content", "ttf content", report.stat("ttfc"), fmt_time, CYAN)
         row("decode speed (tok/s)", "decode t/s", report.stat("decode_tps"), fmt_tps, GREEN)
         row("end-to-end (tok/s)", "e2e t/s", report.stat("e2e_tps"), fmt_tps, AMBER)
         if report.stat("prefill_tps").n:
             row("prefill speed (tok/s)", "prefill t/s", report.stat("prefill_tps"), fmt_tps, PINK)
-        row("inter-token latency", "inter-token", report.itl_stats, fmt_ms, VIOLET)
+        gap_short = "inter-chunk" if report.batched else "inter-token"
+        row(report.gap_label, gap_short, report.itl_stats, fmt_ms, VIOLET)
         row("total request time", "total time", report.stat("total_wall"), fmt_time, BLUE)
         row("output tokens", "out tokens", report.stat("output_tokens"), fmt_int, TEXT)
         return table
@@ -479,16 +482,17 @@ def _aggregate_table(console: Console, report: Report) -> Panel:
 
 #: per-run column sets, richest first
 _RUN_VARIANTS = [
-    (["run", "ttft", "tok/s", "itl p50", "itl p95", "out", "total", "latency trace"],),
-    (["run", "ttft", "tok/s", "itl p50", "itl p95", "out", "total"],),
-    (["run", "ttft", "tok/s", "itl p50", "itl p95", "total"],),
-    (["run", "ttft", "tok/s", "itl p50", "total"],),
+    (["run", "ttft", "tok/s", "GAP p50", "GAP p95", "out", "total", "latency trace"],),
+    (["run", "ttft", "tok/s", "GAP p50", "GAP p95", "out", "total"],),
+    (["run", "ttft", "tok/s", "GAP p50", "GAP p95", "total"],),
+    (["run", "ttft", "tok/s", "GAP p50", "total"],),
     (["run", "ttft", "tok/s", "total"],),
 ]
 
 
 def _runs_table(console: Console, report: Report) -> Panel:
     spark_width = max(14, console.width - 74)
+    gap = "icl" if report.batched else "itl"
 
     def build(cols):
         table = Table(box=box.SIMPLE_HEAD, expand=True, pad_edge=False, header_style=f"bold {DIM}")
@@ -511,8 +515,8 @@ def _runs_table(console: Console, report: Report) -> Panel:
                 "run": f"[{DIM}]{run.index}[/]",
                 "ttft": fmt_time(run.ttft),
                 "tok/s": f"[{GREEN}]{fmt_tps(run.decode_tps)}[/]",
-                "itl p50": fmt_ms(percentile(itls, 0.50)),
-                "itl p95": fmt_ms(percentile(itls, 0.95)),
+                f"{gap} p50": fmt_ms(percentile(itls, 0.50)),
+                f"{gap} p95": fmt_ms(percentile(itls, 0.95)),
                 "out": fmt_int(run.output_tokens),
                 "total": fmt_time(run.total_wall),
                 "latency trace": Text(
@@ -522,7 +526,9 @@ def _runs_table(console: Console, report: Report) -> Panel:
             table.add_row(*[values[c] for c in cols])
         return table
 
-    table = _pick(console, build, _RUN_VARIANTS, console.width - 4)
+    # GAP is a placeholder so the header matches how the server actually streams
+    variants = [([c.replace("GAP", gap) for c in cols],) for (cols,) in _RUN_VARIANTS]
+    table = _pick(console, build, variants, console.width - 4)
 
     return Panel(
         table,
@@ -583,9 +589,16 @@ def _distribution_panel(console: Console, report: Report) -> Optional[Panel]:
         f"\n{len(itls)} gaps measured · {len(stalls)} stall(s) over 5× the mean",
         style=FAINT,
     )
+    if report.batched:
+        per_chunk = report.tokens_per_chunk or 0
+        caption.append(
+            f"\nthe server sends ~{per_chunk:.1f} tokens per chunk, so these are gaps "
+            "between chunks — per-token timing is not observable from the client",
+            style=AMBER,
+        )
     return Panel(
         Group(grid, caption),
-        title=f"[{VIOLET}]inter-token latency distribution[/]",
+        title=f"[{VIOLET}]{report.gap_label} distribution[/]",
         title_align="left",
         border_style=FAINT,
         box=box.ROUNDED,
@@ -594,27 +607,36 @@ def _distribution_panel(console: Console, report: Report) -> Optional[Panel]:
 
 
 def _breakdown_panel(console: Console, report: Report) -> Optional[Panel]:
-    runs = [r for r in report.ok_runs if r.total_duration is not None]
+    runs = report.ok_runs
     if not runs:
         return None
 
     def avg(fn):
+        """Mean of the reported values, or None when the server reported none."""
         vals = [fn(r) for r in runs if fn(r) is not None]
-        return statistics.fmean(vals) if vals else 0.0
+        return statistics.fmean(vals) if vals else None
 
     load = avg(lambda r: r.load_duration)
     prefill = avg(lambda r: r.prompt_eval_duration)
     decode = avg(lambda r: r.eval_duration)
-    overhead = avg(lambda r: r.queue_overhead)
-    total = load + prefill + decode + overhead
+
+    # Without at least one phase duration there is nothing to break down. Showing
+    # the panel anyway would render "unknown" as a confident 0 ms and hand the
+    # entire request to whichever segment happened to be computable.
+    if load is None and prefill is None and decode is None:
+        return None
+
+    wall = avg(lambda r: r.total_wall) or 0.0
+    accounted = (load or 0.0) + (prefill or 0.0) + (decode or 0.0)
+    total = wall if wall > 0 else accounted
     if total <= 0:
         return None
 
     segments = [
-        ("network + queue", overhead, PINK),
-        ("model load", load, AMBER),
-        ("prompt prefill", prefill, BLUE),
-        ("token generation", decode, GREEN),
+        ("network + queue", max(0.0, total - accounted), PINK),
+        ("model load", load or 0.0, AMBER),
+        ("prompt prefill", prefill or 0.0, BLUE),
+        ("token generation", decode or 0.0, GREEN),
     ]
 
     width = max(20, console.width - 4)
@@ -673,6 +695,13 @@ def _verdict_panel(cfg: BenchConfig, report: Report, width: int) -> Panel:
 
     total_tokens = sum(r.output_tokens or 0 for r in report.ok_runs)
     lines.append(f"  ·  {total_tokens:,} tokens generated", style=DIM)
+
+    if any(r.thinking_chars for r in report.ok_runs) and not report.stat("ttfc").n:
+        lines.append("\nnote       ", style=DIM)
+        lines.append(
+            "every token was reasoning — raise --max-tokens to reach the answer",
+            style=AMBER,
+        )
 
     return Panel(
         lines,

@@ -63,7 +63,9 @@ def summarize(values: Sequence[Optional[float]]) -> Stats:
     return Stats(
         n=len(vals),
         mean=statistics.fmean(vals),
-        stdev=statistics.stdev(vals) if len(vals) > 1 else 0.0,
+        # a single sample has no spread to report; 0.0 would read as "perfectly
+        # consistent" when the truth is that we have no evidence either way
+        stdev=statistics.stdev(vals) if len(vals) > 1 else None,
         minimum=min(vals),
         p50=percentile(vals, 0.50),
         p95=percentile(vals, 0.95),
@@ -117,12 +119,19 @@ class RunResult:
         """Generation speed, excluding the wait for the first token."""
         if self.eval_count and self.eval_duration and self.eval_duration > 0:
             return self.eval_count / self.eval_duration
-        # wall-clock fallback for endpoints that omit the stats block
-        if self.ttft is not None and self.last_chunk_at and len(self.chunk_times) > 1:
-            span = self.last_chunk_at - self.ttft
-            if span > 0:
-                return (len(self.chunk_times) - 1) / span
-        return None
+
+        # Wall-clock fallback for endpoints that omit eval_duration. Count
+        # TOKENS, not chunks: a server may pack several tokens into one
+        # streamed chunk, and dividing by chunks understates the rate badly.
+        if self.ttft is None or self.last_chunk_at is None:
+            return None
+        span = self.last_chunk_at - self.ttft
+        if span <= 0:
+            return None
+        tokens = self.eval_count or len(self.chunk_times)
+        if tokens < 2:
+            return None
+        return (tokens - 1) / span
 
     @property
     def e2e_tps(self) -> Optional[float]:
@@ -233,9 +242,38 @@ class Report:
         return summarize(self.all_itls)
 
     @property
+    def tokens_per_chunk(self) -> Optional[float]:
+        """Average tokens carried by each streamed chunk, when countable."""
+        tokens = sum(r.eval_count or 0 for r in self.ok_runs)
+        chunks = sum(len(r.chunk_times) for r in self.ok_runs)
+        if tokens and chunks:
+            return tokens / chunks
+        return None
+
+    @property
+    def batched(self) -> bool:
+        """True when the server packs several tokens into one streamed chunk.
+
+        Gaps between chunks are then not gaps between tokens, so the latency
+        figures have to be described as inter-chunk rather than inter-token.
+        """
+        return any(
+            r.eval_count and r.chunk_times and r.eval_count > len(r.chunk_times) * 1.05
+            for r in self.ok_runs
+        )
+
+    @property
+    def gap_label(self) -> str:
+        return "inter-chunk latency" if self.batched else "inter-token latency"
+
+    @property
     def stability(self):
         """(label, color-ratio) describing how consistent decode speed was."""
-        cv = self.stat("decode_tps").cv
+        stats = self.stat("decode_tps")
+        if stats.n < 2:
+            # zero variance across one sample is arithmetic, not evidence
+            return ("single run", 0.5)
+        cv = stats.cv
         if cv is None:
             return ("unknown", 0.5)
         if cv < 0.05:
@@ -263,7 +301,9 @@ class Report:
                     "overhead",
                 )
             },
-            "inter_token_latency": self.itl_stats.as_dict(),
+            "inter_chunk_latency" if self.batched else "inter_token_latency": self.itl_stats.as_dict(),
+            "chunks_are_batched": self.batched,
+            "tokens_per_chunk": self.tokens_per_chunk,
             "stability": self.stability[0],
             "succeeded": len(self.ok_runs),
             "failed": len(self.failed_runs),

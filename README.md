@@ -92,7 +92,7 @@ python3 ometer.py -m gpt-oss:120b-cloud -n 10
 
 ## While it runs
 
-Four gauges update as tokens arrive, over a token-budget bar, a live inter-token latency
+Four gauges update as tokens arrive, over a token-budget bar, a live latency
 trace, the text streaming in, and a scoreboard of finished runs:
 
 ```
@@ -123,10 +123,10 @@ The screenshot at the top of this page is a real run. Reading it top to bottom:
 - **hero cards** — the four headline numbers, each with its spread underneath
 - **aggregate** — every metric as mean / min / p50 / p95 / max, plus `cv` for run-to-run
   consistency
-- **per run** — one row per request, with a sparkline of that run's inter-token gaps
+- **per run** — one row per request, with a sparkline of that run's streaming gaps
 - **where the time goes** — the server-reported split of a request, for endpoints that
   report it
-- **inter-token latency distribution** — a histogram of the gaps, with a stall count
+- **latency distribution** — a histogram of the streaming gaps, with a stall count
 - **verdict** — the whole thing in one line
 
 The report reflows between 40 and 200 columns. As the terminal narrows, table columns are
@@ -140,16 +140,21 @@ broken — a long endpoint URL or `.env` path below about 60 columns.
 | --- | --- |
 | **Time to first token (TTFT)** | Wall-clock time from sending the request to the first streamed token. Covers network, queueing and prompt prefill — the pause the user feels before anything appears. |
 | **Time to first content** | Same, but ignoring reasoning tokens. Only shown for thinking models, where the visible answer starts later than the stream does. |
-| **Decode speed** | Generation throughput once tokens are flowing, from the server's own `eval_count / eval_duration`. This is the number usually quoted as "tokens/sec". |
+| **Decode speed** | Generation throughput once tokens are flowing — the number usually quoted as "tokens/sec". Taken from the server's `eval_count / eval_duration` when reported; otherwise from the token count over the wall-clock decode window. |
 | **End-to-end speed** | Output tokens ÷ total request time. Lower than decode speed because it includes the wait for the first token. This is what you actually experience. |
 | **Prefill speed** | Prompt tokens ÷ prompt-eval time — how fast your input was read. |
-| **Inter-token latency (ITL)** | The gap between consecutive streamed tokens. The mean looks fine on almost any endpoint; **p95 and the stall count are what make a stream feel choppy**. |
+| **Inter-token latency (ITL)** | The gap between consecutive streamed tokens. The mean looks fine on almost any endpoint; **p95 and the stall count are what make a stream feel choppy**. If the server packs several tokens into one chunk this is reported as **inter-chunk latency (ICL)** instead, because per-token timing is then not observable from the client. |
 | **cv** | Coefficient of variation across runs. Under 5% is rock solid, over 25% means the endpoint was erratic while you measured. |
-| **Where the time goes** | Server-reported model load, prefill and generation, plus the wall-clock time none of them account for — that leftover is network and queueing. |
+| **Where the time goes** | Server-reported model load, prefill and generation as a share of total request time; the remainder is network and queueing. Only shown when the endpoint actually reports these phases — Ollama Cloud currently does not, so the panel is skipped there rather than guessing. |
 
 The first request is a **warmup** and never counts, so cold start doesn't distort the
 result. The HTTP connection is reused across runs, so TLS setup isn't charged to TTFT
-either.
+either. A small **preflight** request runs before everything else to validate the model
+name; the configuration panel shows the true total request count so nothing is hidden
+from your quota.
+
+With a single run (`-n 1`) there is no spread to measure, so `cv` reads `—` and the
+verdict says *single run* rather than claiming consistency it cannot know.
 
 ## Options
 
